@@ -26,7 +26,7 @@ public class MainActivity extends AppCompatActivity {
         VPAdapter vpAdapter = new VPAdapter(getSupportFragmentManager(), FragmentPagerAdapter.BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT);
 
         vpAdapter.addFragment(new fragment1(), "Weather");
-        vpAdapter.addFragment(new fragment1(), "Settings");
+        vpAdapter.addFragment(new fragment2(), "Settings");
 
         viewPager.setAdapter(vpAdapter);
     }
