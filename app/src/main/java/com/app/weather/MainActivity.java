@@ -8,6 +8,8 @@ import androidx.viewpager.widget.ViewPager;
 
 import com.google.android.material.tabs.TabLayout;
 
+import java.util.Objects;
+
 public class MainActivity extends AppCompatActivity {
 
     private TabLayout tabLayout;
@@ -17,6 +19,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        Objects.requireNonNull(getSupportActionBar()).setElevation(0);
 
         tabLayout = findViewById(R.id.tabLayout);
         viewPager = findViewById(R.id.viewPager);
@@ -25,8 +28,8 @@ public class MainActivity extends AppCompatActivity {
 
         VPAdapter vpAdapter = new VPAdapter(getSupportFragmentManager(), FragmentPagerAdapter.BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT);
 
-        vpAdapter.addFragment(new fragment1(), "Weather");
-        vpAdapter.addFragment(new fragment2(), "Settings");
+        vpAdapter.addFragment(new WeatherFragment(), "Weather");
+        vpAdapter.addFragment(new SettingsFragment(), "Settings");
 
         viewPager.setAdapter(vpAdapter);
     }
