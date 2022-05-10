@@ -1,6 +1,8 @@
 package com.app.weather;
 
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.FragmentPagerAdapter;
@@ -18,6 +20,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setPreferences();
         setContentView(R.layout.activity_main);
         Objects.requireNonNull(getSupportActionBar()).setElevation(0);
 
@@ -32,5 +35,11 @@ public class MainActivity extends AppCompatActivity {
         vpAdapter.addFragment(new SettingsFragment(), "Settings");
 
         viewPager.setAdapter(vpAdapter);
+    }
+
+    private void setPreferences() {
+        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        boolean darkMode = sharedPreferences.getBoolean("dark_mode", false);
+        SettingsFragment.setOnSwitchChangeListener(darkMode);
     }
 }
