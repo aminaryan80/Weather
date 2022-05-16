@@ -22,6 +22,9 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.DividerItemDecoration;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
@@ -32,6 +35,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 
@@ -42,6 +47,9 @@ public class WeatherFragment extends Fragment {
     private final Handler handler = new Handler();
     private View view;
     private Context context;
+    private DataHandler dataHandler;
+    private RecyclerView recyclerView;
+    private RecyclerViewWeatherAdapter adapter;
     private final static String TOKEN = "b896d5e04fe88709659757a67e6d57bb";
 
     @Override
@@ -56,6 +64,9 @@ public class WeatherFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
         this.view = view;
         this.context = view.getContext();
+        this.dataHandler = new DataHandler(this.context);
+        recyclerView = view.findViewById(R.id.weatherRecyclerView);
+
 
         LinearLayout cityNameLayout = view.findViewById(R.id.cityNameLayout);
         LinearLayout locationLayout = view.findViewById(R.id.locationLayout);
@@ -205,25 +216,39 @@ public class WeatherFragment extends Fragment {
                     try {
                         Toast.makeText(context, "Start2", Toast.LENGTH_LONG).show();
                         JSONObject responseJsonObject = (JSONObject) new JSONArray(response).get(0);
-                        int latitude = responseJsonObject.getInt("lat");
-                        int longitude = responseJsonObject.getInt("lon");
+                        double latitude = responseJsonObject.getDouble("lat");
+                        double longitude = responseJsonObject.getDouble("lon");
                         getItems(latitude, longitude);
+                        dataHandler.saveCityData(city, latitude, longitude);
                     } catch (JSONException e) {
                         Toast.makeText(context, "Invalid city name", Toast.LENGTH_LONG).show();
                         e.printStackTrace();
+                        resetItems();
                     }
                 },
                 volleyError -> {
                     String errorMessage = volleyError.getMessage();
                     if (errorMessage == null) {
                         Toast.makeText(context, "ERROR WHILE GETTING COORDS!", Toast.LENGTH_LONG).show();
+                        resetItems();
                     } else {
-                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show();
+                        Toast.makeText(context, "You are not connected to the internet!", Toast.LENGTH_LONG).show();
+                        double[] coord = dataHandler.getCityData(city);
+                        if (coord == null) {
+                            resetItems();
+                            return;
+                        }
+                        getItems(coord[0], coord[1]);
                     }
                 }
         );
         RequestQueue requestQueue = Volley.newRequestQueue(context);
         requestQueue.add(myRequest);
+    }
+
+    private void resetItems() {
+        populateTodayData("", "", "", "", 0);
+        adapter.clear();
     }
 
     private void getItems(double latitude, double longitude) {
@@ -235,43 +260,102 @@ public class WeatherFragment extends Fragment {
                 response -> {
                     try {
                         Toast.makeText(context, "Start", Toast.LENGTH_LONG).show();
-                        JSONObject responseJsonObject = new JSONObject(response);
-                        JSONObject currentJsonObject = responseJsonObject.getJSONObject("current");
-                        String temp = currentJsonObject.getString("temp");
-                        String feelsLike = currentJsonObject.getString("feels_like");
-                        String windSpeed = currentJsonObject.getString("wind_speed");
-                        String humidity = currentJsonObject.getString("humidity");
-                        String weatherType = ((JSONObject) currentJsonObject.getJSONArray("weather").get(0)).getString("main");
-                        int iconWeather = getIconWeather(weatherType);
-                        populateTodayData(temp, feelsLike, humidity, windSpeed, iconWeather);
-                        JSONArray dailyJsonArray = responseJsonObject.getJSONArray("daily");
-                        String[][] dailyData = new String[dailyJsonArray.length()][5];
-                        for (int i = 1; i < dailyJsonArray.length(); i++) {
-                            JSONObject dayJsonObject = (JSONObject) dailyJsonArray.get(i);
-                            dailyData[i][0] = dayJsonObject.getJSONObject("temp").getString("max");
-                            dailyData[i][1] = dayJsonObject.getJSONObject("temp").getString("min");
-                            dailyData[i][2] = dayJsonObject.getString("humidity");
-                            dailyData[i][3] = dayJsonObject.getString("wind_speed");
-                            String dayWeatherType = ((JSONObject) dayJsonObject.getJSONArray("weather").get(0)).getString("main");
-                            dailyData[i][4] = String.valueOf(getIconWeather(dayWeatherType));
-                        }
-                        // populateDailyData(dailyData); // TODO: RecyclerView
+                        processResponse(response);
+                        dataHandler.saveWeatherData(latitude, longitude, response);
                     } catch (JSONException e) {
                         Toast.makeText(context, "ERROR!", Toast.LENGTH_LONG).show();
                         e.printStackTrace();
+                        resetItems();
                     }
                 },
                 volleyError -> {
                     String errorMessage = volleyError.getMessage();
                     if (errorMessage == null) {
                         Toast.makeText(context, "Invalid latitude and longitude", Toast.LENGTH_LONG).show();
+                        resetItems();
                     } else {
-                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show();
+                        String response = dataHandler.getWeatherData(latitude, longitude);
+                        if (response == null)
+                            return;
+                        try {
+                            processResponse(response);
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                            resetItems();
+                        }
                     }
                 }
         );
         RequestQueue requestQueue = Volley.newRequestQueue(context);
         requestQueue.add(myRequest);
+    }
+
+    private void processResponse(String response) throws JSONException {
+        JSONObject responseJsonObject = new JSONObject(response);
+        JSONObject currentJsonObject = responseJsonObject.getJSONObject("current");
+        String temp = currentJsonObject.getString("temp");
+        String feelsLike = currentJsonObject.getString("feels_like");
+        String windSpeed = currentJsonObject.getString("wind_speed");
+        String humidity = currentJsonObject.getString("humidity");
+        String weatherType = ((JSONObject) currentJsonObject.getJSONArray("weather").get(0)).getString("main");
+        int iconWeather = getIconWeather(weatherType);
+        populateTodayData(temp, feelsLike, humidity, windSpeed, iconWeather);
+
+        JSONArray dailyJsonArray = responseJsonObject.getJSONArray("daily");
+        String[][] dailyData = new String[dailyJsonArray.length() - 1][5];
+        for (int i = 0; i < dailyJsonArray.length() - 1; i++) {
+            JSONObject dayJsonObject = (JSONObject) dailyJsonArray.get(i + 1);
+            dailyData[i][0] = String.valueOf(round(Double.parseDouble(dayJsonObject.getJSONObject("temp").getString("min")), 1));
+            dailyData[i][1] = String.valueOf(round(Double.parseDouble(dayJsonObject.getJSONObject("temp").getString("max")), 1));
+            dailyData[i][2] = dayJsonObject.getString("humidity");
+            dailyData[i][3] = dayJsonObject.getString("wind_speed");
+            String dayWeatherType = ((JSONObject) dayJsonObject.getJSONArray("weather").get(0)).getString("main");
+            dailyData[i][4] = String.valueOf(getIconWeather(dayWeatherType));
+        }
+        populateDailyData(dailyData);
+    }
+
+    public static double round(double value, int places) {
+        if (places < 0) throw new IllegalArgumentException();
+
+        BigDecimal bd = BigDecimal.valueOf(value);
+        bd = bd.setScale(places, RoundingMode.HALF_UP);
+        return bd.doubleValue();
+    }
+
+    @SuppressLint("NotifyDataSetChanged")
+    private void populateDailyData(String[][] dailyData) {
+        // day, month, min, max, humidity, wind, weatherImage
+        String[][] allData = new String[dailyData.length][7];
+        for (int i = 0; i < dailyData.length; i++) {
+            String[] date = getDate(i + 1);
+            allData[i][0] = date[0];
+            allData[i][1] = date[1];
+            allData[i][2] = dailyData[i][0];
+            allData[i][3] = dailyData[i][1];
+            allData[i][4] = dailyData[i][2];
+            allData[i][5] = dailyData[i][3];
+            allData[i][6] = dailyData[i][4];
+        }
+        LinearLayoutManager verticalLayoutManager = new LinearLayoutManager(
+                context,
+                LinearLayoutManager.VERTICAL,
+                false
+        );
+        addDivider(recyclerView);
+        adapter = new RecyclerViewWeatherAdapter(allData, context);
+        recyclerView.setLayoutManager(verticalLayoutManager);
+        recyclerView.setAdapter(adapter);
+        adapter.notifyDataSetChanged();
+    }
+
+    private void addDivider(RecyclerView recyclerView) {
+        recyclerView.addItemDecoration(
+                new DividerItemDecoration(
+                        context,
+                        LinearLayoutManager.VERTICAL
+                )
+        );
     }
 
     @SuppressLint("SetTextI18n")
@@ -284,17 +368,29 @@ public class WeatherFragment extends Fragment {
         TextView windTextView = view.findViewById(R.id.windTextView);
         ImageView weatherImageView = view.findViewById(R.id.weatherImageView);
 
-        Calendar cal = Calendar.getInstance();
-        @SuppressLint("SimpleDateFormat") SimpleDateFormat month_date = new SimpleDateFormat("MMM");
-        @SuppressLint("SimpleDateFormat") SimpleDateFormat day_date = new SimpleDateFormat("d");
+        String[] today = getDate(0);
 
-        dayDateTextView.setText(day_date.format(cal.getTime()));
-        monthDateTextView.setText(month_date.format(cal.getTime()));
+        dayDateTextView.setText(today[0]);
+        monthDateTextView.setText(today[1]);
         tempTextView.setText(temp + "°");
         feelsLikeTextView.setText("feels like " + feelsLike + "°");
         humidityTextView.setText(humidity + "%");
         windTextView.setText(windSpeed);
         weatherImageView.setImageResource(iconWeather);
+    }
+
+    private String[] getDate(int i) {
+        String[] today = new String[2];
+
+        Calendar cal = Calendar.getInstance();
+        @SuppressLint("SimpleDateFormat") SimpleDateFormat month_date = new SimpleDateFormat("MMM");
+        @SuppressLint("SimpleDateFormat") SimpleDateFormat day_date = new SimpleDateFormat("d");
+
+        cal.add(Calendar.DAY_OF_YEAR, i);
+        today[0] = day_date.format(cal.getTime());
+        today[1] = month_date.format(cal.getTime());
+
+        return today;
     }
 
     private int getIconWeather(String weatherType) {
