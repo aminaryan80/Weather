@@ -10,4 +10,5 @@
     <color name="primary_200">#4fc3f7</color>
     <color name="gradient_start">@color/black</color>
     <color name="gradient_end">@color/black</color>
+    <color name="recycler_background">#ff000000</color>
 </resources>

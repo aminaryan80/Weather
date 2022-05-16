@@ -7,6 +7,7 @@
     tools:context=".WeatherFragment">
 
     <View
+        android:id="@+id/view"
         android:layout_width="match_parent"
         android:layout_height="210dp"
         android:background="@drawable/backgroud_gradient"
@@ -33,7 +34,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="20dp"
-            android:buttonTint="#ffcdd2"
+            android:buttonTint="#d6d6d6"
             android:checked="true"
             android:text="Location"
             android:textSize="20sp" />
@@ -43,7 +44,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="20dp"
-            android:buttonTint="#ffcdd2"
+            android:buttonTint="#d6d6d6"
             android:text="City Name"
             android:textSize="20sp" />
     </RadioGroup>
@@ -102,7 +103,8 @@
     </LinearLayout>
 
     <include
-        layout="@layout/today_weather"
+        android:id="@+id/include"
+        layout="@layout/today_weather_item"
         android:layout_width="match_parent"
         android:layout_height="80dp"
         android:layout_marginTop="8dp"
@@ -110,5 +112,32 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/inputLayout" />
 
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:orientation="vertical"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/include">
 
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/weatherRecyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="@color/recycler_background"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHeight="0dp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <View
+            android:id="@+id/view2"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>
