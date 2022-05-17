@@ -214,7 +214,7 @@ public class WeatherFragment extends Fragment {
         StringRequest myRequest = new StringRequest(Request.Method.GET, url,
                 response -> {
                     try {
-                        Toast.makeText(context, "Start2", Toast.LENGTH_LONG).show();
+//                        Toast.makeText(context, "Start2", Toast.LENGTH_LONG).show();
                         JSONObject responseJsonObject = (JSONObject) new JSONArray(response).get(0);
                         double latitude = responseJsonObject.getDouble("lat");
                         double longitude = responseJsonObject.getDouble("lon");
@@ -262,7 +262,7 @@ public class WeatherFragment extends Fragment {
         StringRequest myRequest = new StringRequest(Request.Method.GET, url,
                 response -> {
                     try {
-                        Toast.makeText(context, "Start", Toast.LENGTH_LONG).show();
+//                        Toast.makeText(context, "Start", Toast.LENGTH_LONG).show();
                         processResponse(response);
                         dataHandler.saveWeatherData(latitude, longitude, response);
                     } catch (JSONException e) {
