@@ -22,6 +22,8 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.Observer;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.DividerItemDecoration;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -47,7 +49,7 @@ public class WeatherFragment extends Fragment {
     private final Handler handler = new Handler();
     private View view;
     private Context context;
-    private DataHandler dataHandler;
+    private WeatherViewModel weatherViewModel;
     private RecyclerView recyclerView;
     private RecyclerViewWeatherAdapter adapter;
     private final static String TOKEN = "b896d5e04fe88709659757a67e6d57bb";
@@ -55,7 +57,10 @@ public class WeatherFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-
+//        final Observer<String> weatherDataObserver = data -> {
+//            // Update the UI, in this case, a TextView.
+//            mNameTextView.setText(newName);
+//        };
         return inflater.inflate(R.layout.fragment_weather, container, false);
     }
 
@@ -64,7 +69,7 @@ public class WeatherFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
         this.view = view;
         this.context = view.getContext();
-        this.dataHandler = new DataHandler(this.context);
+        this.weatherViewModel = new ViewModelProvider(requireActivity()).get(WeatherViewModel.class);
         recyclerView = view.findViewById(R.id.weatherRecyclerView);
 
 
@@ -219,7 +224,7 @@ public class WeatherFragment extends Fragment {
                         double latitude = responseJsonObject.getDouble("lat");
                         double longitude = responseJsonObject.getDouble("lon");
                         getItems(latitude, longitude);
-                        dataHandler.saveCityData(city, latitude, longitude);
+                        weatherViewModel.insertCityData(city, latitude, longitude);
                     } catch (JSONException e) {
                         Toast.makeText(context, "Invalid city name", Toast.LENGTH_LONG).show();
                         e.printStackTrace();
@@ -233,7 +238,7 @@ public class WeatherFragment extends Fragment {
                         resetItems();
                     } else {
                         Toast.makeText(context, "You are not connected to the internet!", Toast.LENGTH_LONG).show();
-                        double[] coord = dataHandler.getCityData(city);
+                        double[] coord = weatherViewModel.getCityDataFromDao(city).getValue();
                         if (coord == null) {
                             resetItems();
                             return;
@@ -260,8 +265,8 @@ public class WeatherFragment extends Fragment {
                 response -> {
                     try {
 //                        Toast.makeText(context, "Start", Toast.LENGTH_LONG).show();
-                        processResponse(response);
-                        dataHandler.saveWeatherData(latitude, longitude, response);
+                        weatherViewModel.insertWeatherData(latitude, longitude, response);
+                        processResponse(weatherViewModel.getWeatherData());
                     } catch (JSONException e) {
                         Toast.makeText(context, "ERROR!", Toast.LENGTH_LONG).show();
                         e.printStackTrace();
@@ -274,11 +279,11 @@ public class WeatherFragment extends Fragment {
                         Toast.makeText(context, "Invalid latitude and longitude", Toast.LENGTH_LONG).show();
                         resetItems();
                     } else {
-                        String response = dataHandler.getWeatherData(latitude, longitude);
+                        String response = weatherViewModel.getWeatherDataFromDao(latitude, longitude).getValue();
                         if (response == null)
                             return;
                         try {
-                            processResponse(response);
+                            processResponse(weatherViewModel.getWeatherData());
                         } catch (JSONException e) {
                             e.printStackTrace();
                             resetItems();

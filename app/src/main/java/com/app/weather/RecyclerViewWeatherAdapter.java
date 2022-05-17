@@ -73,7 +73,6 @@ public class RecyclerViewWeatherAdapter extends RecyclerView.Adapter<RecyclerVie
         int size = weatherData.length;
         if (size > 0) {
             weatherData = new String[0][0];
-
             notifyItemRangeRemoved(0, size);
         }
     }
