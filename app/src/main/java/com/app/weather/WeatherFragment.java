@@ -47,20 +47,27 @@ public class WeatherFragment extends Fragment {
     private EditText latitudeEditText;
     private EditText longitudeEditText;
     private final Handler handler = new Handler();
+    private Observer<String> weatherDataObserver;
     private View view;
     private Context context;
     private WeatherViewModel weatherViewModel;
     private RecyclerView recyclerView;
+
     private RecyclerViewWeatherAdapter adapter;
     private final static String TOKEN = "b896d5e04fe88709659757a67e6d57bb";
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-//        final Observer<String> weatherDataObserver = data -> {
-//            // Update the UI, in this case, a TextView.
-//            mNameTextView.setText(newName);
-//        };
+        weatherDataObserver = data -> {
+            try {
+                processData(data);
+            } catch (JSONException e) {
+                Toast.makeText(context, "ERROR!", Toast.LENGTH_LONG).show();
+                e.printStackTrace();
+                resetItems();
+            }
+        };
         return inflater.inflate(R.layout.fragment_weather, container, false);
     }
 
@@ -238,7 +245,7 @@ public class WeatherFragment extends Fragment {
                         resetItems();
                     } else {
                         Toast.makeText(context, "You are not connected to the internet!", Toast.LENGTH_LONG).show();
-                        double[] coord = weatherViewModel.getCityDataFromDao(city).getValue();
+                        double[] coord = weatherViewModel.getCityDataFromDao(city);
                         if (coord == null) {
                             resetItems();
                             return;
@@ -263,15 +270,8 @@ public class WeatherFragment extends Fragment {
         url = url.replace("<TOKEN>", TOKEN);
         StringRequest myRequest = new StringRequest(Request.Method.GET, url,
                 response -> {
-                    try {
-//                        Toast.makeText(context, "Start", Toast.LENGTH_LONG).show();
-                        weatherViewModel.insertWeatherData(latitude, longitude, response);
-                        processResponse(weatherViewModel.getWeatherData());
-                    } catch (JSONException e) {
-                        Toast.makeText(context, "ERROR!", Toast.LENGTH_LONG).show();
-                        e.printStackTrace();
-                        resetItems();
-                    }
+                    weatherViewModel.insertWeatherData(latitude, longitude, response);
+                    weatherViewModel.getWeatherLiveData().observe(getViewLifecycleOwner(), weatherDataObserver);
                 },
                 volleyError -> {
                     String errorMessage = volleyError.getMessage();
@@ -279,15 +279,11 @@ public class WeatherFragment extends Fragment {
                         Toast.makeText(context, "Invalid latitude and longitude", Toast.LENGTH_LONG).show();
                         resetItems();
                     } else {
-                        String response = weatherViewModel.getWeatherDataFromDao(latitude, longitude).getValue();
+                        String response = weatherViewModel.getWeatherDataFromDao(latitude, longitude);
                         if (response == null)
                             return;
-                        try {
-                            processResponse(weatherViewModel.getWeatherData());
-                        } catch (JSONException e) {
-                            e.printStackTrace();
-                            resetItems();
-                        }
+                        weatherViewModel.setWeatherLiveData(response);
+                        weatherViewModel.getWeatherLiveData().observe(getViewLifecycleOwner(), weatherDataObserver);
                     }
                 }
         );
@@ -295,8 +291,8 @@ public class WeatherFragment extends Fragment {
         requestQueue.add(myRequest);
     }
 
-    private void processResponse(String response) throws JSONException {
-        JSONObject responseJsonObject = new JSONObject(response);
+    private void processData(String data) throws JSONException {
+        JSONObject responseJsonObject = new JSONObject(data);
         JSONObject currentJsonObject = responseJsonObject.getJSONObject("current");
         String temp = currentJsonObject.getString("temp");
         String feelsLike = currentJsonObject.getString("feels_like");
