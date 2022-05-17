@@ -248,6 +248,9 @@ public class WeatherFragment extends Fragment {
 
     private void resetItems() {
         populateTodayData("", "", "", "", 0);
+        if (adapter == null) {
+            return;
+        }
         adapter.clear();
     }
 
