@@ -1,5 +1,9 @@
 package com.app.weather;
 
+import static com.app.weather.WeatherUtils.getDate;
+import static com.app.weather.WeatherUtils.getIconWeather;
+import static com.app.weather.WeatherUtils.round;
+
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.os.Bundle;
@@ -51,7 +55,6 @@ public class WeatherFragment extends Fragment {
     private View view;
     private Context context;
     private WeatherViewModel weatherViewModel;
-    private RecyclerView recyclerView;
 
     private RecyclerViewWeatherAdapter adapter;
     private final static String TOKEN = "b896d5e04fe88709659757a67e6d57bb";
@@ -77,8 +80,7 @@ public class WeatherFragment extends Fragment {
         this.view = view;
         this.context = view.getContext();
         this.weatherViewModel = new ViewModelProvider(requireActivity()).get(WeatherViewModel.class);
-        recyclerView = view.findViewById(R.id.weatherRecyclerView);
-
+        handleRecyclerView();
 
         LinearLayout cityNameLayout = view.findViewById(R.id.cityNameLayout);
         LinearLayout locationLayout = view.findViewById(R.id.locationLayout);
@@ -210,6 +212,28 @@ public class WeatherFragment extends Fragment {
         });
     }
 
+    private void addDivider(RecyclerView recyclerView) {
+        recyclerView.addItemDecoration(
+                new DividerItemDecoration(
+                        context,
+                        LinearLayoutManager.VERTICAL
+                )
+        );
+    }
+
+    private void handleRecyclerView() {
+        RecyclerView recyclerView = view.findViewById(R.id.weatherRecyclerView);
+        addDivider(recyclerView);
+        LinearLayoutManager verticalLayoutManager = new LinearLayoutManager(
+                context,
+                LinearLayoutManager.VERTICAL,
+                false
+        );
+        adapter = new RecyclerViewWeatherAdapter(new String[][]{}, context);
+        recyclerView.setLayoutManager(verticalLayoutManager);
+        recyclerView.setAdapter(adapter);
+    }
+
     private void closeKeyboard() {
         InputMethodManager imm = (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
         imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
@@ -226,7 +250,7 @@ public class WeatherFragment extends Fragment {
         StringRequest myRequest = new StringRequest(Request.Method.GET, url,
                 response -> {
                     try {
-//                        Toast.makeText(context, "Start2", Toast.LENGTH_LONG).show();
+                        Toast.makeText(context, "Start2", Toast.LENGTH_LONG).show();
                         JSONObject responseJsonObject = (JSONObject) new JSONArray(response).get(0);
                         double latitude = responseJsonObject.getDouble("lat");
                         double longitude = responseJsonObject.getDouble("lon");
@@ -313,50 +337,7 @@ public class WeatherFragment extends Fragment {
             String dayWeatherType = ((JSONObject) dayJsonObject.getJSONArray("weather").get(0)).getString("main");
             dailyData[i][4] = String.valueOf(getIconWeather(dayWeatherType));
         }
-        populateDailyData(dailyData);
-    }
-
-    public static double round(double value, int places) {
-        if (places < 0) throw new IllegalArgumentException();
-
-        BigDecimal bd = BigDecimal.valueOf(value);
-        bd = bd.setScale(places, RoundingMode.HALF_UP);
-        return bd.doubleValue();
-    }
-
-    @SuppressLint("NotifyDataSetChanged")
-    private void populateDailyData(String[][] dailyData) {
-        // day, month, min, max, humidity, wind, weatherImage
-        String[][] allData = new String[dailyData.length][7];
-        for (int i = 0; i < dailyData.length; i++) {
-            String[] date = getDate(i + 1);
-            allData[i][0] = date[0];
-            allData[i][1] = date[1];
-            allData[i][2] = dailyData[i][0];
-            allData[i][3] = dailyData[i][1];
-            allData[i][4] = dailyData[i][2];
-            allData[i][5] = dailyData[i][3];
-            allData[i][6] = dailyData[i][4];
-        }
-        LinearLayoutManager verticalLayoutManager = new LinearLayoutManager(
-                context,
-                LinearLayoutManager.VERTICAL,
-                false
-        );
-        addDivider(recyclerView);
-        adapter = new RecyclerViewWeatherAdapter(allData, context);
-        recyclerView.setLayoutManager(verticalLayoutManager);
-        recyclerView.setAdapter(adapter);
-        adapter.notifyDataSetChanged();
-    }
-
-    private void addDivider(RecyclerView recyclerView) {
-        recyclerView.addItemDecoration(
-                new DividerItemDecoration(
-                        context,
-                        LinearLayoutManager.VERTICAL
-                )
-        );
+        adapter.populateDailyData(dailyData);
     }
 
     @SuppressLint("SetTextI18n")
@@ -378,38 +359,5 @@ public class WeatherFragment extends Fragment {
         humidityTextView.setText(humidity + "%");
         windTextView.setText(windSpeed);
         weatherImageView.setImageResource(iconWeather);
-    }
-
-    private String[] getDate(int i) {
-        String[] today = new String[2];
-
-        Calendar cal = Calendar.getInstance();
-        @SuppressLint("SimpleDateFormat") SimpleDateFormat month_date = new SimpleDateFormat("MMM");
-        @SuppressLint("SimpleDateFormat") SimpleDateFormat day_date = new SimpleDateFormat("d");
-
-        cal.add(Calendar.DAY_OF_YEAR, i);
-        today[0] = day_date.format(cal.getTime());
-        today[1] = month_date.format(cal.getTime());
-
-        return today;
-    }
-
-    private int getIconWeather(String weatherType) {
-        switch (weatherType) {
-            case "Clear":
-                return R.drawable.clear;
-            case "Clouds":
-                return R.drawable.clouds;
-            case "Snow":
-                return R.drawable.snow;
-            case "Rain":
-                return R.drawable.rain;
-            case "Drizzle":
-                return R.drawable.drizzle;
-            case "Thunderstorm":
-                return R.drawable.thunderstorm;
-            default:
-                return R.drawable.foggy;
-        }
     }
 }

@@ -4,13 +4,12 @@ import android.app.Application;
 
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.MutableLiveData;
-import androidx.lifecycle.SavedStateHandle;
 
 public class WeatherViewModel extends AndroidViewModel {
     private final DataRepository dataRepository;
     private final MutableLiveData<String> weatherLiveData;
 
-    public WeatherViewModel (Application application, SavedStateHandle state) {
+    public WeatherViewModel (Application application) {
         super(application);
         dataRepository = new DataRepository(application);
         weatherLiveData = new MutableLiveData<>();
