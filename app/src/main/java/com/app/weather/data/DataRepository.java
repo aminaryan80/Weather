@@ -1,12 +1,7 @@
-package com.app.weather;
+package com.app.weather.data;
 
 import android.content.Context;
 import android.os.AsyncTask;
-
-import com.app.weather.data.AppDatabase;
-import com.app.weather.data.CityData;
-import com.app.weather.data.DataDao;
-import com.app.weather.data.WeatherData;
 
 import java.util.List;
 

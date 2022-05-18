@@ -41,17 +41,11 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
-
 public class WeatherFragment extends Fragment {
     private EditText cityNameEditText;
     private EditText latitudeEditText;
     private EditText longitudeEditText;
     private final Handler handler = new Handler();
-    private Observer<String> weatherDataObserver;
     private View view;
     private Context context;
     private WeatherViewModel weatherViewModel;
@@ -62,15 +56,7 @@ public class WeatherFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        weatherDataObserver = data -> {
-            try {
-                processData(data);
-            } catch (JSONException e) {
-                Toast.makeText(context, "ERROR!", Toast.LENGTH_LONG).show();
-                e.printStackTrace();
-                resetItems();
-            }
-        };
+
         return inflater.inflate(R.layout.fragment_weather, container, false);
     }
 
@@ -80,8 +66,22 @@ public class WeatherFragment extends Fragment {
         this.view = view;
         this.context = view.getContext();
         this.weatherViewModel = new ViewModelProvider(requireActivity()).get(WeatherViewModel.class);
-        handleRecyclerView();
 
+        handleRecyclerView();
+        setRadioGroupListener();
+
+        cityNameEditText = (EditText) view.findViewById(R.id.cityNameEditText);
+        latitudeEditText = (EditText) view.findViewById(R.id.latitudeEditText);
+        longitudeEditText = (EditText) view.findViewById(R.id.longitudeEditText);
+
+        setCityNameListener();
+        setLocationListener();
+        setCityNameKeyListener();
+        setLocationKeyListener();
+        setObserver();
+    }
+
+    private void setRadioGroupListener() {
         LinearLayout cityNameLayout = view.findViewById(R.id.cityNameLayout);
         LinearLayout locationLayout = view.findViewById(R.id.locationLayout);
 
@@ -97,11 +97,9 @@ public class WeatherFragment extends Fragment {
                 cityNameLayout.setVisibility(View.VISIBLE);
             }
         });
+    }
 
-        cityNameEditText = (EditText) view.findViewById(R.id.cityNameEditText);
-        latitudeEditText = (EditText) view.findViewById(R.id.latitudeEditText);
-        longitudeEditText = (EditText) view.findViewById(R.id.longitudeEditText);
-
+    private void setCityNameListener() {
         cityNameEditText.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
@@ -120,7 +118,23 @@ public class WeatherFragment extends Fragment {
                 runDelayed(runnable, 5000);
             }
         });
+    }
 
+    private void setCityNameKeyListener() {
+        cityNameEditText.setOnKeyListener((View.OnKeyListener) (view1, i, keyEvent) -> {
+            if (i == KeyEvent.KEYCODE_ENTER) {
+                handler.removeCallbacksAndMessages(null);
+                String city = cityNameEditText.getText().toString();
+                Runnable runnable = () -> getItemsByCity(city);
+                runDelayed(runnable, 0);
+                closeKeyboard();
+                return true;
+            }
+            return false;
+        });
+    }
+
+    private void setLocationListener() {
         latitudeEditText.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
@@ -166,19 +180,9 @@ public class WeatherFragment extends Fragment {
                 }
             }
         });
+    }
 
-        cityNameEditText.setOnKeyListener((View.OnKeyListener) (view1, i, keyEvent) -> {
-            if (i == KeyEvent.KEYCODE_ENTER) {
-                handler.removeCallbacksAndMessages(null);
-                String city = cityNameEditText.getText().toString();
-                Runnable runnable = () -> getItemsByCity(city);
-                runDelayed(runnable, 0);
-                closeKeyboard();
-                return true;
-            }
-            return false;
-        });
-
+    private void setLocationKeyListener() {
         latitudeEditText.setOnKeyListener((View.OnKeyListener) (view1, i, keyEvent) -> {
             if (i == KeyEvent.KEYCODE_ENTER) {
                 handler.removeCallbacksAndMessages(null);
@@ -234,6 +238,19 @@ public class WeatherFragment extends Fragment {
         recyclerView.setAdapter(adapter);
     }
 
+    private void setObserver() {
+        Observer<String> weatherDataObserver = data -> {
+            try {
+                processData(data);
+            } catch (JSONException e) {
+                Toast.makeText(context, "ERROR!", Toast.LENGTH_LONG).show();
+                e.printStackTrace();
+                resetItems();
+            }
+        };
+        weatherViewModel.getWeatherLiveData().observe(getViewLifecycleOwner(), weatherDataObserver);
+    }
+
     private void closeKeyboard() {
         InputMethodManager imm = (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
         imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
@@ -250,7 +267,6 @@ public class WeatherFragment extends Fragment {
         StringRequest myRequest = new StringRequest(Request.Method.GET, url,
                 response -> {
                     try {
-                        Toast.makeText(context, "Start2", Toast.LENGTH_LONG).show();
                         JSONObject responseJsonObject = (JSONObject) new JSONArray(response).get(0);
                         double latitude = responseJsonObject.getDouble("lat");
                         double longitude = responseJsonObject.getDouble("lon");
@@ -288,6 +304,8 @@ public class WeatherFragment extends Fragment {
     }
 
     private void getItems(double latitude, double longitude) {
+        closeKeyboard();
+
         String url = "https://api.openweathermap.org/data/2.5/onecall?lat=<LAT>&lon=<LON>&exclude=hourly,minutely,alerts&appid=<TOKEN>&units=metric";
         url = url.replace("<LAT>", String.valueOf(latitude));
         url = url.replace("<LON>", String.valueOf(longitude));
@@ -295,7 +313,6 @@ public class WeatherFragment extends Fragment {
         StringRequest myRequest = new StringRequest(Request.Method.GET, url,
                 response -> {
                     weatherViewModel.insertWeatherData(latitude, longitude, response);
-                    weatherViewModel.getWeatherLiveData().observe(getViewLifecycleOwner(), weatherDataObserver);
                 },
                 volleyError -> {
                     String errorMessage = volleyError.getMessage();
@@ -303,11 +320,11 @@ public class WeatherFragment extends Fragment {
                         Toast.makeText(context, "Invalid latitude and longitude", Toast.LENGTH_LONG).show();
                         resetItems();
                     } else {
+                        Toast.makeText(context, "You are not connected to the internet!", Toast.LENGTH_LONG).show();
                         String response = weatherViewModel.getWeatherDataFromDao(latitude, longitude);
                         if (response == null)
                             return;
                         weatherViewModel.setWeatherLiveData(response);
-                        weatherViewModel.getWeatherLiveData().observe(getViewLifecycleOwner(), weatherDataObserver);
                     }
                 }
         );
