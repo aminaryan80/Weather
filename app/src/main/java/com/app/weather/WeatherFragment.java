@@ -1,5 +1,9 @@
 package com.app.weather;
 
+import static com.app.weather.WeatherUtils.getDate;
+import static com.app.weather.WeatherUtils.getIconWeather;
+import static com.app.weather.WeatherUtils.round;
+
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.os.Bundle;
@@ -22,6 +26,8 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.Observer;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.DividerItemDecoration;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -35,11 +41,6 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
-
 public class WeatherFragment extends Fragment {
     private EditText cityNameEditText;
     private EditText latitudeEditText;
@@ -47,8 +48,8 @@ public class WeatherFragment extends Fragment {
     private final Handler handler = new Handler();
     private View view;
     private Context context;
-    private DataHandler dataHandler;
-    private RecyclerView recyclerView;
+    private WeatherViewModel weatherViewModel;
+
     private RecyclerViewWeatherAdapter adapter;
     private final static String TOKEN = "b896d5e04fe88709659757a67e6d57bb";
 
@@ -64,10 +65,23 @@ public class WeatherFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
         this.view = view;
         this.context = view.getContext();
-        this.dataHandler = new DataHandler(this.context);
-        recyclerView = view.findViewById(R.id.weatherRecyclerView);
+        this.weatherViewModel = new ViewModelProvider(requireActivity()).get(WeatherViewModel.class);
 
+        handleRecyclerView();
+        setRadioGroupListener();
 
+        cityNameEditText = (EditText) view.findViewById(R.id.cityNameEditText);
+        latitudeEditText = (EditText) view.findViewById(R.id.latitudeEditText);
+        longitudeEditText = (EditText) view.findViewById(R.id.longitudeEditText);
+
+        setCityNameListener();
+        setLocationListener();
+        setCityNameKeyListener();
+        setLocationKeyListener();
+        setObserver();
+    }
+
+    private void setRadioGroupListener() {
         LinearLayout cityNameLayout = view.findViewById(R.id.cityNameLayout);
         LinearLayout locationLayout = view.findViewById(R.id.locationLayout);
 
@@ -83,11 +97,9 @@ public class WeatherFragment extends Fragment {
                 cityNameLayout.setVisibility(View.VISIBLE);
             }
         });
+    }
 
-        cityNameEditText = (EditText) view.findViewById(R.id.cityNameEditText);
-        latitudeEditText = (EditText) view.findViewById(R.id.latitudeEditText);
-        longitudeEditText = (EditText) view.findViewById(R.id.longitudeEditText);
-
+    private void setCityNameListener() {
         cityNameEditText.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
@@ -106,7 +118,23 @@ public class WeatherFragment extends Fragment {
                 runDelayed(runnable, 5000);
             }
         });
+    }
 
+    private void setCityNameKeyListener() {
+        cityNameEditText.setOnKeyListener((View.OnKeyListener) (view1, i, keyEvent) -> {
+            if (i == KeyEvent.KEYCODE_ENTER) {
+                handler.removeCallbacksAndMessages(null);
+                String city = cityNameEditText.getText().toString();
+                Runnable runnable = () -> getItemsByCity(city);
+                runDelayed(runnable, 0);
+                closeKeyboard();
+                return true;
+            }
+            return false;
+        });
+    }
+
+    private void setLocationListener() {
         latitudeEditText.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
@@ -152,19 +180,9 @@ public class WeatherFragment extends Fragment {
                 }
             }
         });
+    }
 
-        cityNameEditText.setOnKeyListener((View.OnKeyListener) (view1, i, keyEvent) -> {
-            if (i == KeyEvent.KEYCODE_ENTER) {
-                handler.removeCallbacksAndMessages(null);
-                String city = cityNameEditText.getText().toString();
-                Runnable runnable = () -> getItemsByCity(city);
-                runDelayed(runnable, 0);
-                closeKeyboard();
-                return true;
-            }
-            return false;
-        });
-
+    private void setLocationKeyListener() {
         latitudeEditText.setOnKeyListener((View.OnKeyListener) (view1, i, keyEvent) -> {
             if (i == KeyEvent.KEYCODE_ENTER) {
                 handler.removeCallbacksAndMessages(null);
@@ -198,6 +216,41 @@ public class WeatherFragment extends Fragment {
         });
     }
 
+    private void addDivider(RecyclerView recyclerView) {
+        recyclerView.addItemDecoration(
+                new DividerItemDecoration(
+                        context,
+                        LinearLayoutManager.VERTICAL
+                )
+        );
+    }
+
+    private void handleRecyclerView() {
+        RecyclerView recyclerView = view.findViewById(R.id.weatherRecyclerView);
+        addDivider(recyclerView);
+        LinearLayoutManager verticalLayoutManager = new LinearLayoutManager(
+                context,
+                LinearLayoutManager.VERTICAL,
+                false
+        );
+        adapter = new RecyclerViewWeatherAdapter(new String[][]{}, context);
+        recyclerView.setLayoutManager(verticalLayoutManager);
+        recyclerView.setAdapter(adapter);
+    }
+
+    private void setObserver() {
+        Observer<String> weatherDataObserver = data -> {
+            try {
+                processData(data);
+            } catch (JSONException e) {
+                Toast.makeText(context, "ERROR!", Toast.LENGTH_LONG).show();
+                e.printStackTrace();
+                resetItems();
+            }
+        };
+        weatherViewModel.getWeatherLiveData().observe(getViewLifecycleOwner(), weatherDataObserver);
+    }
+
     private void closeKeyboard() {
         InputMethodManager imm = (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
         imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
@@ -214,12 +267,11 @@ public class WeatherFragment extends Fragment {
         StringRequest myRequest = new StringRequest(Request.Method.GET, url,
                 response -> {
                     try {
-//                        Toast.makeText(context, "Start2", Toast.LENGTH_LONG).show();
                         JSONObject responseJsonObject = (JSONObject) new JSONArray(response).get(0);
                         double latitude = responseJsonObject.getDouble("lat");
                         double longitude = responseJsonObject.getDouble("lon");
                         getItems(latitude, longitude);
-                        dataHandler.saveCityData(city, latitude, longitude);
+                        weatherViewModel.insertCityData(city, latitude, longitude);
                     } catch (JSONException e) {
                         Toast.makeText(context, "Invalid city name", Toast.LENGTH_LONG).show();
                         e.printStackTrace();
@@ -233,7 +285,7 @@ public class WeatherFragment extends Fragment {
                         resetItems();
                     } else {
                         Toast.makeText(context, "You are not connected to the internet!", Toast.LENGTH_LONG).show();
-                        double[] coord = dataHandler.getCityData(city);
+                        double[] coord = weatherViewModel.getCityDataFromDao(city);
                         if (coord == null) {
                             resetItems();
                             return;
@@ -255,21 +307,15 @@ public class WeatherFragment extends Fragment {
     }
 
     private void getItems(double latitude, double longitude) {
+        closeKeyboard();
+
         String url = "https://api.openweathermap.org/data/2.5/onecall?lat=<LAT>&lon=<LON>&exclude=hourly,minutely,alerts&appid=<TOKEN>&units=metric";
         url = url.replace("<LAT>", String.valueOf(latitude));
         url = url.replace("<LON>", String.valueOf(longitude));
         url = url.replace("<TOKEN>", TOKEN);
         StringRequest myRequest = new StringRequest(Request.Method.GET, url,
                 response -> {
-                    try {
-//                        Toast.makeText(context, "Start", Toast.LENGTH_LONG).show();
-                        processResponse(response);
-                        dataHandler.saveWeatherData(latitude, longitude, response);
-                    } catch (JSONException e) {
-                        Toast.makeText(context, "ERROR!", Toast.LENGTH_LONG).show();
-                        e.printStackTrace();
-                        resetItems();
-                    }
+                    weatherViewModel.insertWeatherData(latitude, longitude, response);
                 },
                 volleyError -> {
                     String errorMessage = volleyError.getMessage();
@@ -277,15 +323,11 @@ public class WeatherFragment extends Fragment {
                         Toast.makeText(context, "Invalid latitude and longitude", Toast.LENGTH_LONG).show();
                         resetItems();
                     } else {
-                        String response = dataHandler.getWeatherData(latitude, longitude);
+                        Toast.makeText(context, "You are not connected to the internet!", Toast.LENGTH_LONG).show();
+                        String response = weatherViewModel.getWeatherDataFromDao(latitude, longitude);
                         if (response == null)
                             return;
-                        try {
-                            processResponse(response);
-                        } catch (JSONException e) {
-                            e.printStackTrace();
-                            resetItems();
-                        }
+                        weatherViewModel.setWeatherLiveData(response);
                     }
                 }
         );
@@ -293,8 +335,8 @@ public class WeatherFragment extends Fragment {
         requestQueue.add(myRequest);
     }
 
-    private void processResponse(String response) throws JSONException {
-        JSONObject responseJsonObject = new JSONObject(response);
+    private void processData(String data) throws JSONException {
+        JSONObject responseJsonObject = new JSONObject(data);
         JSONObject currentJsonObject = responseJsonObject.getJSONObject("current");
         String temp = currentJsonObject.getString("temp");
         String feelsLike = currentJsonObject.getString("feels_like");
@@ -315,50 +357,7 @@ public class WeatherFragment extends Fragment {
             String dayWeatherType = ((JSONObject) dayJsonObject.getJSONArray("weather").get(0)).getString("main");
             dailyData[i][4] = String.valueOf(getIconWeather(dayWeatherType));
         }
-        populateDailyData(dailyData);
-    }
-
-    public static double round(double value, int places) {
-        if (places < 0) throw new IllegalArgumentException();
-
-        BigDecimal bd = BigDecimal.valueOf(value);
-        bd = bd.setScale(places, RoundingMode.HALF_UP);
-        return bd.doubleValue();
-    }
-
-    @SuppressLint("NotifyDataSetChanged")
-    private void populateDailyData(String[][] dailyData) {
-        // day, month, min, max, humidity, wind, weatherImage
-        String[][] allData = new String[dailyData.length][7];
-        for (int i = 0; i < dailyData.length; i++) {
-            String[] date = getDate(i + 1);
-            allData[i][0] = date[0];
-            allData[i][1] = date[1];
-            allData[i][2] = dailyData[i][0];
-            allData[i][3] = dailyData[i][1];
-            allData[i][4] = dailyData[i][2];
-            allData[i][5] = dailyData[i][3];
-            allData[i][6] = dailyData[i][4];
-        }
-        LinearLayoutManager verticalLayoutManager = new LinearLayoutManager(
-                context,
-                LinearLayoutManager.VERTICAL,
-                false
-        );
-        addDivider(recyclerView);
-        adapter = new RecyclerViewWeatherAdapter(allData, context);
-        recyclerView.setLayoutManager(verticalLayoutManager);
-        recyclerView.setAdapter(adapter);
-        adapter.notifyDataSetChanged();
-    }
-
-    private void addDivider(RecyclerView recyclerView) {
-        recyclerView.addItemDecoration(
-                new DividerItemDecoration(
-                        context,
-                        LinearLayoutManager.VERTICAL
-                )
-        );
+        adapter.populateDailyData(dailyData);
     }
 
     @SuppressLint("SetTextI18n")
@@ -380,38 +379,5 @@ public class WeatherFragment extends Fragment {
         humidityTextView.setText(humidity + "%");
         windTextView.setText(windSpeed);
         weatherImageView.setImageResource(iconWeather);
-    }
-
-    private String[] getDate(int i) {
-        String[] today = new String[2];
-
-        Calendar cal = Calendar.getInstance();
-        @SuppressLint("SimpleDateFormat") SimpleDateFormat month_date = new SimpleDateFormat("MMM");
-        @SuppressLint("SimpleDateFormat") SimpleDateFormat day_date = new SimpleDateFormat("d");
-
-        cal.add(Calendar.DAY_OF_YEAR, i);
-        today[0] = day_date.format(cal.getTime());
-        today[1] = month_date.format(cal.getTime());
-
-        return today;
-    }
-
-    private int getIconWeather(String weatherType) {
-        switch (weatherType) {
-            case "Clear":
-                return R.drawable.clear;
-            case "Clouds":
-                return R.drawable.clouds;
-            case "Snow":
-                return R.drawable.snow;
-            case "Rain":
-                return R.drawable.rain;
-            case "Drizzle":
-                return R.drawable.drizzle;
-            case "Thunderstorm":
-                return R.drawable.thunderstorm;
-            default:
-                return R.drawable.foggy;
-        }
     }
 }

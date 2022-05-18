@@ -1,5 +1,7 @@
 package com.app.weather;
 
+import static com.app.weather.WeatherUtils.getDate;
+
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.view.LayoutInflater;
@@ -73,8 +75,25 @@ public class RecyclerViewWeatherAdapter extends RecyclerView.Adapter<RecyclerVie
         int size = weatherData.length;
         if (size > 0) {
             weatherData = new String[0][0];
-
             notifyItemRangeRemoved(0, size);
         }
+    }
+
+    @SuppressLint("NotifyDataSetChanged")
+    public void populateDailyData(String[][] dailyData) {
+        // day, month, min, max, humidity, wind, weatherImage
+        String[][] allData = new String[dailyData.length][7];
+        for (int i = 0; i < dailyData.length; i++) {
+            String[] date = getDate(i + 1);
+            allData[i][0] = date[0];
+            allData[i][1] = date[1];
+            allData[i][2] = dailyData[i][0];
+            allData[i][3] = dailyData[i][1];
+            allData[i][4] = dailyData[i][2];
+            allData[i][5] = dailyData[i][3];
+            allData[i][6] = dailyData[i][4];
+        }
+        weatherData = allData;
+        notifyDataSetChanged();
     }
 }
